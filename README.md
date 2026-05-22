@@ -202,17 +202,3 @@ src/
 npm test        # node:test unit tests for the deterministic core
 npm run typecheck
 ```
-
-## Notes & limits (v1)
-
-- **Output format** — Markdown is the primary output by design. PDF/DOCX remain a future
-  `--render` bolt-on (e.g. via Pandoc); not implemented yet.
-- **Math** — the clean equations come from the vision LaTeX block. The body text still
-  carries the source's *inline* math as plain text, so some overlap remains; doccut strips
-  the worst artifacts (stray equation-number tags like `--- (4.7)` and bare page numbers).
-- **Figure crops** — crops are now auto-trimmed of surrounding whitespace. The vision
-  bounding box can still graze an adjacent caption (caption text is ink, so trimming keeps
-  it), so a crop may include a caption line.
-- **Scope (by design)** — no editing of existing documents, no rewritten/synthesized
-  narrative, no multi-document merge. Input is PDF only (any layout: outline, TOC,
-  heading-derived, or scanned — see *Build the section index*).
