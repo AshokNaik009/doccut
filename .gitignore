@@ -1,0 +1,12 @@
+node_modules/
+.cache/
+# Test fixture: large, likely-copyrighted textbook — not redistributed in the repo.
+TestFile-Extract.pdf
+*.pdf
+*.md.assets/
+*.assets/
+dist/
+*.log
+.DS_Store
+# generated extraction outputs
+/out/

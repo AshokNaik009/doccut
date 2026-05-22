@@ -1,0 +1,27 @@
+{
+  "name": "doccut",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Query-driven PDF section extractor: large PDF + fuzzy NL query -> assembled Markdown",
+  "bin": {
+    "doccut": "./src/cli.ts"
+  },
+  "scripts": {
+    "doccut": "tsx src/cli.ts",
+    "index": "tsx src/cli.ts index",
+    "extract": "tsx src/cli.ts extract",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
+    "commander": "^12.1.0",
+    "pdfjs-dist": "^4.7.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
