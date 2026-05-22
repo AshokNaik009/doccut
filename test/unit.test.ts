@@ -1,8 +1,11 @@
 // Fast, deterministic unit tests for the non-LLM core. Run: npm test
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createCanvas } from "@napi-rs/canvas";
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { tidyBodyText } from "../src/extract/assemble.ts";
 import { detectGutter } from "../src/pdf/columns.ts";
+import { trimWhitespace } from "../src/pdf/render.ts";
 import { anchorSections, matchScore } from "../src/index/anchor.ts";
 import { chooseLevel, sectionsFromOutline } from "../src/index/outline.ts";
 import { parseToc } from "../src/index/toc.ts";
@@ -116,6 +119,38 @@ test("uniquePageCount de-duplicates overlapping ranges", () => {
   const sel = (startPage: number, endPage: number) => ({ title: "x", startPage, endPage, confidence: 1 });
   assert.equal(uniquePageCount([sel(1, 5), sel(4, 8)]), 8); // 1..8
   assert.equal(uniquePageCount([sel(10, 10)]), 1);
+});
+
+test("trimWhitespace tightens to the inked region (plus padding)", () => {
+  const c = createCanvas(100, 100);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 100, 100);
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(40, 40, 10, 10); // ink from (40,40) to (49,49)
+  const t = trimWhitespace(c, 248, 6);
+  // 10px of ink + 6px padding each side, clamped: ~22px square.
+  assert.ok(t.width >= 20 && t.width <= 24, `width ${t.width}`);
+  assert.ok(t.height >= 20 && t.height <= 24, `height ${t.height}`);
+});
+
+test("trimWhitespace leaves an all-white canvas unchanged", () => {
+  const c = createCanvas(50, 50);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 50, 50);
+  const t = trimWhitespace(c);
+  assert.equal(t.width, 50);
+  assert.equal(t.height, 50);
+});
+
+test("tidyBodyText drops page numbers and stray equation tags, keeps prose", () => {
+  const input = ["Isothermal process is defined as", "--- (4.7)", "90", "a constant-T change."].join("\n");
+  const out = tidyBodyText(input);
+  assert.ok(out.includes("Isothermal process is defined as"));
+  assert.ok(out.includes("a constant-T change."));
+  assert.ok(!out.includes("(4.7)"));
+  assert.ok(!/\n90\n|^90$/m.test(out), "bare page number should be removed");
 });
 
 test("toPixels scales fractional bboxes and passes pixel bboxes through", () => {

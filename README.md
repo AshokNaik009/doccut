@@ -123,9 +123,14 @@ out/thermo.assets/       # fig01.png, fig02.png, … (cropped figures)
 
 ### Example output (excerpt of `out/thermo.md`)
 
-Produced by the `--yes --out out/thermo.md` command above. Note the provenance header
-with source page range, the "why selected" rationale from the agentic select step, the
-inlined cropped figure, and the clean LaTeX transcribed by the vision pass:
+Produced by the `--yes --out out/thermo.md` command above. One of the figures it cropped
+and inlined (`fig01.png`, the p–V isotherm) — auto-trimmed of surrounding whitespace:
+
+<img src="docs/example/pv-diagram.png" alt="p-V diagram of an isothermal process" width="240">
+
+The assembled Markdown around it — note the provenance header with source page range, the
+"why selected" rationale from the agentic select step, the inlined figure, and the clean
+LaTeX transcribed by the vision pass:
 
 ````markdown
 # Extract: isothermal and adiabatic thermodynamic processes
@@ -200,11 +205,14 @@ npm run typecheck
 
 ## Notes & limits (v1)
 
-- Markdown is the primary output by design; PDF/DOCX are intended as a later `--render`
-  bolt-on (e.g. via Pandoc).
-- The page text layer reproduces math as garbled inline text; the clean version comes from
-  the vision LaTeX block. Some duplication is expected.
-- Figure crop boxes are approximate (the vision pass snaps them) and may include a little
-  surrounding whitespace or caption.
-- Scope excludes editing existing documents, rewritten/synthesized narrative, and
-  multi-document merge.
+- **Output format** — Markdown is the primary output by design. PDF/DOCX remain a future
+  `--render` bolt-on (e.g. via Pandoc); not implemented yet.
+- **Math** — the clean equations come from the vision LaTeX block. The body text still
+  carries the source's *inline* math as plain text, so some overlap remains; doccut strips
+  the worst artifacts (stray equation-number tags like `--- (4.7)` and bare page numbers).
+- **Figure crops** — crops are now auto-trimmed of surrounding whitespace. The vision
+  bounding box can still graze an adjacent caption (caption text is ink, so trimming keeps
+  it), so a crop may include a caption line.
+- **Scope (by design)** — no editing of existing documents, no rewritten/synthesized
+  narrative, no multi-document merge. Input is PDF only (any layout: outline, TOC,
+  heading-derived, or scanned — see *Build the section index*).

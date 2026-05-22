@@ -44,7 +44,7 @@ export function assembleMarkdown(sections: SectionContent[], meta: AssembleMeta)
     out.push("");
 
     for (const page of sec.pages) {
-      const body = page.text.trim();
+      const body = tidyBodyText(page.text);
       if (body.length > 0) {
         out.push(body);
         out.push("");
@@ -75,4 +75,23 @@ export function assembleMarkdown(sections: SectionContent[], meta: AssembleMeta)
 
 function escapeAlt(s: string): string {
   return s.replace(/[[\]]/g, "").replace(/\n/g, " ");
+}
+
+/**
+ * Drop the noisiest artifacts of raw page text: bare page numbers and stray
+ * equation-number tags (e.g. "--- (4.7)"), which the vision LaTeX block already
+ * carries cleanly. Conservative — prose and inline math are left intact.
+ */
+export function tidyBodyText(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      if (/^\d{2,4}$/.test(t)) return false; // standalone page number
+      if (/^-{2,}\s*\(\s*\d+(\.\d+)?\s*\)$/.test(t)) return false; // "--- (4.7)" tag line
+      return true;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

@@ -73,7 +73,48 @@ export async function cropToPng(rendered: RenderedPage, bbox: BBox, outPath: str
   const out = createCanvas(w, h);
   const ctx = out.getContext("2d");
   ctx.drawImage(rendered.canvas, Math.round(x0), Math.round(y0), w, h, 0, 0, w, h);
-  await saveCanvasPng(out, outPath);
+  await saveCanvasPng(trimWhitespace(out), outPath);
+}
+
+/**
+ * Trim near-white margins around the content of a canvas (the vision bbox is
+ * often loose), keeping a small uniform padding. Returns the original canvas if
+ * it's effectively blank.
+ */
+export function trimWhitespace(canvas: Canvas, whiteThreshold = 248, pad = 6): Canvas {
+  const ctx = canvas.getContext("2d");
+  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const isInk =
+        data[i + 3]! > 16 &&
+        (data[i]! < whiteThreshold || data[i + 1]! < whiteThreshold || data[i + 2]! < whiteThreshold);
+      if (isInk) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return canvas; // all white / empty
+
+  const nx = Math.max(0, minX - pad);
+  const ny = Math.max(0, minY - pad);
+  const nw = Math.min(width, maxX + pad) - nx + 1;
+  const nh = Math.min(height, maxY + pad) - ny + 1;
+  if (nx === 0 && ny === 0 && nw >= width && nh >= height) return canvas; // nothing to trim
+
+  const trimmed = createCanvas(nw, nh);
+  const tctx = trimmed.getContext("2d");
+  tctx.drawImage(canvas, nx, ny, nw, nh, 0, 0, nw, nh);
+  return trimmed;
 }
 
 function clampBox(bbox: BBox, width: number, height: number): BBox {
