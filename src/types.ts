@@ -1,5 +1,13 @@
 // Shared data contracts for doccut. See SPEC.md §5.
 
+/** How a section's page range was derived (most→least authoritative). */
+export type SectionSource =
+  | "outline" // PDF bookmarks / document outline
+  | "toc-anchored" // printed TOC title anchored to a heading page
+  | "llm-adjudicated" // model resolved a weak anchor
+  | "heuristic" // detected headings only
+  | "page-window"; // last-resort fixed-size windows (no structure found)
+
 /** A detected section in the cached section map (SPEC §5.1). */
 export interface Section {
   id: string;
@@ -11,7 +19,7 @@ export interface Section {
   /** Printed page number from the TOC, if known. */
   printedPage?: number;
   confidence: number;
-  source: "toc-anchored" | "heuristic" | "llm-adjudicated";
+  source: SectionSource;
 }
 
 /** Cached section map written to .cache/<hash>.sections.json (SPEC §5.1). */

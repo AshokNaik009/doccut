@@ -3,6 +3,7 @@
 // Anchoring per-title yields the printed→PDF page map directly, so there is no
 // single global offset guess. A robust median offset is used only as a
 // cross-check and as the fallback for titles we can't anchor confidently.
+import type { SectionSource } from "../types.ts";
 import type { HeadingCandidate } from "./headings.ts";
 import type { TocEntry } from "./toc.ts";
 
@@ -13,7 +14,7 @@ export interface AnchoredSection {
   endPage: number;
   printedPage?: number;
   confidence: number;
-  source: "toc-anchored" | "heuristic" | "llm-adjudicated";
+  source: SectionSource;
   /** True when the anchor is weak and should be adjudicated by the model. */
   needsAdjudication: boolean;
 }

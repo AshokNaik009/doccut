@@ -7,6 +7,7 @@ import type { Section, SectionMap } from "../types.ts";
 import { ADJUDICATION_SCHEMA } from "../extract/schemas.ts";
 import { type AnchoredSection, anchorSections } from "./anchor.ts";
 import { detectHeadings, estimateBodySize, type HeadingCandidate, tallySizes } from "./headings.ts";
+import { sectionsFromOutline } from "./outline.ts";
 import { parseToc } from "./toc.ts";
 
 /** Pages of front matter scanned for the printed TOC. */
@@ -33,11 +34,14 @@ export async function buildIndex(pdfPath: string, opts: BuildOptions): Promise<S
     const sizeWeights = new Map<number, number>();
     const headingLines = new Map<number, { text: string; maxFontSize: number; bold: boolean }[]>();
     const frontLines: { pageNumber: number; text: string }[] = [];
+    let emptyPages = 0;
 
     for (let pn = 1; pn <= pageCount; pn++) {
       const pt = await extractPageText(doc, pn);
       const lines = readingOrder(layoutPage(pt));
-      await cache.writePageText(pn, linesToText(lines));
+      const text = linesToText(lines);
+      await cache.writePageText(pn, text);
+      if (text.trim().length < 10) emptyPages++;
 
       tallySizes(lines, sizeWeights);
 
@@ -62,16 +66,35 @@ export async function buildIndex(pdfPath: string, opts: BuildOptions): Promise<S
     }
     log(`Body text ≈ ${bodySize}pt; ${headings.length} heading candidates.`);
 
-    const toc = parseToc(frontLines);
-    log(`Parsed ${toc.length} TOC entries.`);
+    // Most PDFs are scanned-free with a real text layer; warn if this one isn't,
+    // since text-based selection will be weak (vision still works on extracted pages).
+    if (pageCount > 0 && emptyPages / pageCount > 0.6) {
+      log(
+        `⚠ ${emptyPages}/${pageCount} pages have no extractable text — this PDF looks scanned. ` +
+          `Structure + text search will be limited; figures/equations still come from the vision pass.`,
+      );
+    }
 
-    let anchored: AnchoredSection[];
-    if (toc.length > 0) {
-      anchored = anchorSections(toc, headings, pageCount);
-      anchored = await adjudicate(anchored, headings, cache, pageCount, log);
+    // Structure priority for layout-agnostic indexing:
+    //   PDF outline → printed-TOC anchoring → detected headings → page windows.
+    let anchored = await sectionsFromOutline(doc, pageCount);
+    if (anchored && anchored.length > 0) {
+      log(`Structure from PDF outline/bookmarks: ${anchored.length} sections.`);
     } else {
-      log("No TOC found — deriving sections from detected headings.");
-      anchored = sectionsFromHeadings(headings, pageCount);
+      const toc = parseToc(frontLines);
+      log(`No usable outline. Parsed ${toc.length} printed-TOC entries.`);
+      if (toc.length > 0) {
+        anchored = anchorSections(toc, headings, pageCount);
+        anchored = await adjudicate(anchored, headings, cache, pageCount, log);
+      } else {
+        anchored = sectionsFromHeadings(headings, pageCount);
+        if (anchored.length >= 2) {
+          log(`Derived ${anchored.length} sections from detected headings.`);
+        } else {
+          anchored = sectionsFromWindows(pageCount);
+          log(`No structure found — falling back to ${anchored.length} fixed page windows.`);
+        }
+      }
     }
 
     const sections: Section[] = anchored.map((a) => ({
@@ -194,6 +217,25 @@ function sectionsFromHeadings(headings: HeadingCandidate[], pageCount: number): 
       needsAdjudication: false,
     };
   });
+}
+
+/** Last resort: no outline, TOC, or headings — slice the document into fixed windows. */
+function sectionsFromWindows(pageCount: number, size = 20): AnchoredSection[] {
+  const out: AnchoredSection[] = [];
+  let n = 1;
+  for (let start = 1; start <= pageCount; start += size) {
+    const end = Math.min(start + size - 1, pageCount);
+    out.push({
+      number: n++,
+      title: `Pages ${start}–${end}`,
+      startPage: start,
+      endPage: end,
+      confidence: 0.3,
+      source: "page-window",
+      needsAdjudication: false,
+    });
+  }
+  return out;
 }
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;

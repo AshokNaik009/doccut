@@ -44,12 +44,26 @@ npm run doccut -- --help
 npx tsx src/cli.ts index <pdf> [--force] [--cache-dir .cache]
 ```
 
-Sweeps the PDF once: extracts column-aware text per page, detects headings, parses the
-printed Table of Contents, and **anchors** each TOC title to the PDF page where it
-actually begins (so there is no printed-vs-PDF page-offset guesswork). Weak anchors are
-adjudicated by a single bounded `claude -p` call. Results are cached in `.cache/` keyed by
-the PDF's content hash, so re-indexing is skipped unless the file changes or you pass
-`--force`. `extract` auto-runs this if the cache is missing.
+Sweeps the PDF once (extracting column-aware text per page) and derives the section map.
+It is **agnostic to the PDF's layout** — it tries the most authoritative structure source
+available and falls back gracefully:
+
+1. **PDF outline / bookmarks** (`getOutline`) — used directly when present (most published
+   PDFs have these). The single most reliable source.
+2. **Printed Table of Contents** — parsed from the front matter, then each title is
+   **anchored** to the PDF page where it actually begins (no printed-vs-PDF offset
+   guesswork). Weak anchors are resolved by one bounded `claude -p` call.
+3. **Detected headings** — when there's no outline or TOC, sections are derived from
+   font-size/numbering heuristics.
+4. **Fixed page windows** — last resort, so the index is never empty.
+
+Single- and two-column layouts are handled (the reading order detects the gutter). Scanned
+PDFs with no text layer are detected and flagged — structure/text search is then limited,
+but figures and equations still come from the vision pass on extracted pages.
+
+Results are cached in `.cache/` keyed by the PDF's content hash, so re-indexing is skipped
+unless the file changes or you pass `--force`. `extract` auto-runs this if the cache is
+missing.
 
 ### 2. Extract sections matching a query
 
@@ -131,7 +145,8 @@ src/
     render.ts       page → PNG, region crop (@napi-rs/canvas)
     geometry.ts     operator-list bboxes, figure clustering, math density
   index/
-    headings.ts toc.ts anchor.ts build.ts   the indexing pipeline
+    outline.ts        structure from PDF bookmarks (top-priority source)
+    headings.ts toc.ts anchor.ts build.ts   heading/TOC derivation + builder
   extract/
     select.ts confirm.ts vision.ts assemble.ts run.ts   the extract pipeline
     schemas.ts      JSON schemas for the model calls

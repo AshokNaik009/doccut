@@ -1,8 +1,10 @@
 // Fast, deterministic unit tests for the non-LLM core. Run: npm test
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { detectGutter } from "../src/pdf/columns.ts";
 import { anchorSections, matchScore } from "../src/index/anchor.ts";
+import { chooseLevel, sectionsFromOutline } from "../src/index/outline.ts";
 import { parseToc } from "../src/index/toc.ts";
 import { uniquePageCount } from "../src/extract/confirm.ts";
 import { toPixels } from "../src/extract/vision.ts";
@@ -70,6 +72,44 @@ test("anchorSections derives offset and end pages", () => {
   assert.equal(secs[0]!.endPage, 35); // up to next start - 1
   assert.equal(secs[0]!.source, "toc-anchored");
   assert.equal(secs[1]!.startPage, 36);
+});
+
+test("chooseLevel descends past a single root to its children", () => {
+  const single = [{ title: "Book", dest: null, items: [{ title: "A", dest: null }, { title: "B", dest: null }] }];
+  assert.equal(chooseLevel(single).length, 2);
+  const twoTop = [{ title: "A", dest: null }, { title: "B", dest: null }];
+  assert.equal(chooseLevel(twoTop).length, 2);
+});
+
+test("sectionsFromOutline resolves dests (array + named) into ordered sections", async () => {
+  const mockDoc = {
+    async getOutline() {
+      return [
+        { title: "Chapter One", dest: [{ num: 1 }], items: [] },
+        { title: "Chapter Two", dest: "named-two", items: [] },
+      ];
+    },
+    async getDestination(name: string) {
+      return name === "named-two" ? [{ num: 2 }] : null;
+    },
+    async getPageIndex(ref: { num: number }) {
+      return ref.num === 1 ? 5 : 20; // 0-based → pages 6 and 21
+    },
+  } as unknown as PDFDocumentProxy;
+
+  const secs = await sectionsFromOutline(mockDoc, 100);
+  assert.ok(secs, "expected sections from the outline");
+  assert.equal(secs!.length, 2);
+  assert.equal(secs![0]!.startPage, 6);
+  assert.equal(secs![0]!.endPage, 20); // up to next start - 1
+  assert.equal(secs![0]!.source, "outline");
+  assert.equal(secs![1]!.startPage, 21);
+  assert.equal(secs![1]!.endPage, 100);
+});
+
+test("sectionsFromOutline returns null when there is no outline", async () => {
+  const mockDoc = { async getOutline() { return null; } } as unknown as PDFDocumentProxy;
+  assert.equal(await sectionsFromOutline(mockDoc, 100), null);
 });
 
 test("uniquePageCount de-duplicates overlapping ranges", () => {
